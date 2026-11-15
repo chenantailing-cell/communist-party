@@ -31,6 +31,18 @@ CHANGELOG.md        每套一行流水账
    脚本会把新文件名追加进 `data/manifest.json`，已有套题文件不动。
 3. `git add -A && git commit -m "新增：2026-11-22-02" && git push`。
 
+## 发布（本机网络受限，走 API）
+
+这台机器上 `github.com` 不可达（`git push` / SSH / 网页全被挡），只有 `api.github.com` 通，所以发布用 API 直推：
+
+```bash
+set GITHUB_TOKEN=github_pat_xxx
+python source/publish.py --repo chenantailing-cell/communist-party --root . --enable-pages --message "新增：2026-11-22-02"
+```
+
+`publish.py` 会把当前目录所有文件打成一次提交推到 `main`（已存在分支时基于它更新，不会丢历史）。
+在**网络正常**的机器上也可以照常 `git push`，两条路等价。
+
 ## 本地预览
 
 ```bash
