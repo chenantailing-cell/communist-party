@@ -99,14 +99,10 @@ def main():
     stages = parse_md(src.read_text(encoding='utf-8'))
     events = []
     problems = []
-    seen_no = set()
     for si, st in enumerate(stages, 1):
-        for it in st['items']:
+        for order, it in enumerate(st['items']):
             no = it['no']
             raw = it['raw']
-            if no in seen_no:
-                problems.append(f'条号重复：{no}')
-            seen_no.add(no)
             for key in REQUIRED:
                 if not raw.get(key, '').strip():
                     problems.append(f'第 {no} 条缺{key}')
@@ -116,8 +112,7 @@ def main():
                 problems.append(f'第 {no} 条时间无法解析：{label}')
             tags = [t.strip() for t in re.split(r'[；;、,，]', raw.get('tags', '')) if t.strip()]
             events.append({
-                'id': f'history-{no:03d}',
-                'no': no,
+                'order': order,
                 'stageNo': si,
                 'stage': st['title'],
                 'sort': sort,
@@ -129,7 +124,10 @@ def main():
                 'tags': tags,
             })
 
-    events.sort(key=lambda x: (x['sort'] or 0, x['no']))
+    events.sort(key=lambda x: (x['sort'] or 0, x['stageNo'], x['order']))
+    for i, e in enumerate(events, 1):
+        e['no'] = i
+        e['id'] = f'history-{i:03d}'
     for a, b in zip(events, events[1:]):
         if a['sort'] and b['sort'] and a['sort'] > b['sort']:
             problems.append(f'时间顺序颠倒：{a["no"]}（{a["time"]}）在 {b["no"]}（{b["time"]}）之后')
