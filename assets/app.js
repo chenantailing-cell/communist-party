@@ -4,7 +4,7 @@ const TYPE = { single: '单选题', multiple: '多选题', blank: '填空题', j
 const TABS = ['single', 'multiple', 'blank', 'judge', 'concept', 'timeline', 'review'];
 const REVIEW_KEY = 'dangke.review.v1';
 
-const state = { bank: [], concepts: [], conceptDoc: null, sets: [], corrections: [], view: 'single', q: '', ready: false };
+const state = { bank: [], concepts: [], conceptDoc: null, conceptLesson: null, sets: [], corrections: [], view: 'single', q: '', ready: false };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -91,19 +91,70 @@ function conceptCard(c) {
 </article>`;
 }
 
-function renderConcepts() {
-  let list = state.concepts.slice();
+function lessonInfo(no) {
+  const lessons = (state.conceptDoc && state.conceptDoc.lessons) || [];
+  return lessons.find((l) => l.no === no) || null;
+}
+
+function renderConceptIndex() {
+  let html = '<div class="lesson-index">';
+  for (let n = 1; n <= 11; n++) {
+    const l = lessonInfo(n);
+    const count = state.concepts.filter((c) => c.lesson === n).length;
+    const title = l ? l.title : '待录入';
+    html += `<button class="lesson-item${l && count ? '' : ' empty'}" data-lesson="${n}">
+      <span class="lesson-no">第 ${n} 课</span>
+      <span class="lesson-title">${esc(title)}</span>
+      <span class="lesson-count">${count} 条</span>
+      <span class="lesson-arrow">›</span>
+    </button>`;
+  }
+  html += '</div>';
+  $('#list').innerHTML = html;
+  $('#list').querySelectorAll('.lesson-item').forEach((btn) => {
+    btn.onclick = () => {
+      state.conceptLesson = Number(btn.dataset.lesson);
+      state.q = '';
+      $('#q').value = '';
+      render();
+      window.scrollTo({ top: 0 });
+    };
+  });
+  stats();
+}
+
+function renderConceptLesson() {
+  const no = state.conceptLesson;
+  const l = lessonInfo(no);
+  let list = state.concepts.filter((c) => c.lesson === no);
   if (state.q) {
     const k = state.q.toLowerCase();
-    list = list.filter((c) => [c.stem, c.answer, c.explain, c.lessonTitle, (c.tags || []).join(' ')]
+    list = list.filter((c) => [c.stem, c.answer, c.explain, (c.tags || []).join(' ')]
       .join(' ').toLowerCase().includes(k));
   }
-  list.sort((a, b) => (a.lesson || 99) - (b.lesson || 99) || a.no - b.no);
-  let html = list.map(conceptCard).join('');
-  if (!html) html = `<p class="empty">${state.concepts.length ? '没有匹配的概念。' : '「概念」分类已就绪，尚未录入条目。'}</p>`;
-  $('#list').innerHTML = html;
+  list.sort((a, b) => a.no - b.no);
+  const head = `<div class="lesson-bar">
+    <button class="back" id="back-index">← 返回目录</button>
+    <h2>第 ${no} 课 · ${esc(l ? l.title : '待录入')}</h2>
+    <span class="lesson-total">${list.length} 条</span>
+  </div>`;
+  let body = list.map(conceptCard).join('');
+  if (!body) body = `<p class="empty">${l ? '没有匹配的概念。' : '本课概念尚未录入。'}</p>`;
+  $('#list').innerHTML = head + body;
+  $('#back-index').onclick = () => {
+    state.conceptLesson = null;
+    state.q = '';
+    $('#q').value = '';
+    render();
+    window.scrollTo({ top: 0 });
+  };
   bindMarks();
   stats();
+}
+
+function renderConcepts() {
+  if (state.conceptLesson == null) { renderConceptIndex(); return; }
+  renderConceptLesson();
 }
 
 function bindMarks() {
@@ -122,6 +173,9 @@ function render() {
   const view = state.view;
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   if (!state.ready) { $('#list').innerHTML = '<p class="empty">正在加载题库…</p>'; return; }
+  const onConceptIndex = view === 'concept' && state.conceptLesson == null;
+  $('#q').disabled = onConceptIndex;
+  $('#q').placeholder = onConceptIndex ? '选择课程后可搜索' : '搜索题干 / 答案 / 解析 / 概念 / 关键词';
   if (view === 'concept') { renderConcepts(); return; }
   let list = state.bank.slice();
   if (TYPE[view]) list = list.filter((q) => q.type === view);
@@ -163,7 +217,7 @@ function stats() {
   $('#stats').textContent = `共 ${state.bank.length} 题 · ${cn} 条概念 · ${state.sets.length} 套 · 时间待定 ${undated} 题 · 已标记复习 ${marked} 个`;
   $('#sets').textContent = state.sets.length
     ? '已并入：' + state.sets.map((s) => `${s.setId}（${(s.questions || []).length} 题）`).join('、')
-      + (cn ? `；概念：十一课（${cn} 条）` : '')
+      + (cn ? `；概念：${(state.conceptDoc && state.conceptDoc.lessons ? state.conceptDoc.lessons.length : 0)}/11 课（${cn} 条）` : '')
     : '';
 }
 
@@ -197,13 +251,18 @@ function initNav() {
     const b = e.target.closest('button[data-view]');
     if (!b) return;
     state.view = b.dataset.view;
+    if (state.view === 'concept') { state.conceptLesson = null; state.q = ''; $('#q').value = ''; }
     location.hash = state.view;
     render();
   };
   $('#q').oninput = (e) => { state.q = e.target.value.trim(); render(); };
   window.addEventListener('hashchange', () => {
     const h = (location.hash || '').slice(1);
-    if (TABS.includes(h)) { state.view = h; render(); }
+    if (TABS.includes(h)) {
+      state.view = h;
+      if (h === 'concept') { state.conceptLesson = null; state.q = ''; $('#q').value = ''; }
+      render();
+    }
   });
 }
 
