@@ -1,10 +1,10 @@
 /* 党课题库前端：manifest → 逐套读取 → 合并去重 → 应用订正 → 按历史时间排序 → 渲染 */
 const DATA = 'data/';
 const TYPE = { single: '单选题', multiple: '多选题', blank: '填空题', judge: '判断题', concept: '概念' };
-const TABS = ['single', 'multiple', 'blank', 'judge', 'concept', 'timeline', 'review'];
+const TABS = ['single', 'multiple', 'blank', 'judge', 'concept', 'history', 'timeline', 'review'];
 const REVIEW_KEY = 'dangke.review.v1';
 
-const state = { bank: [], concepts: [], conceptDoc: null, conceptLesson: null, sets: [], corrections: [], view: 'single', q: '', ready: false };
+const state = { bank: [], concepts: [], conceptDoc: null, conceptLesson: null, history: [], historyDoc: null, sets: [], corrections: [], view: 'single', q: '', ready: false };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -91,6 +91,45 @@ function conceptCard(c) {
 </article>`;
 }
 
+function historyCard(h) {
+  const tags = (h.tags || []).map((t) => `<span class="badge muted">${esc(t)}</span>`).join('');
+  const marked = !!review()[h.id];
+  return `<article class="card history" data-id="${esc(h.id)}">
+  <div class="meta"><span class="badge">${esc(h.time)}</span><span class="badge">党史</span><span>第 ${esc(h.no)} 条</span>${tags}</div>
+  <dl class="facts">
+    <div><dt>时间</dt><dd>${esc(h.time)}</dd></div>
+    <div><dt>地点</dt><dd>${esc(h.place)}</dd></div>
+    <div><dt>人物</dt><dd>${esc(h.people)}</dd></div>
+    <div class="fact-main"><dt>事件</dt><dd>${esc(h.event)}</dd></div>
+  </dl>
+  <p class="impact"><span class="impact-label">影响</span>${esc(h.impact)}</p>
+  <button class="mark${marked ? ' on' : ''}">${marked ? '已标记复习' : '标记复习'}</button>
+</article>`;
+}
+
+function renderHistory() {
+  let list = state.history.slice();
+  if (state.q) {
+    const k = state.q.toLowerCase();
+    list = list.filter((h) => [h.time, h.place, h.people, h.event, h.impact, (h.tags || []).join(' ')]
+      .join(' ').toLowerCase().includes(k));
+  }
+  list.sort((a, b) => (a.sort || 0) - (b.sort || 0) || a.no - b.no);
+  let html = '';
+  if (list.length) {
+    html = `<p class="history-intro">${esc((state.historyDoc && state.historyDoc.intro) || '按时间顺序记载。')}</p>`;
+  }
+  let lastStage = '';
+  for (const h of list) {
+    if (h.stage !== lastStage) { html += `<h2 class="era">${esc(h.stage)}</h2>`; lastStage = h.stage; }
+    html += historyCard(h);
+  }
+  if (!list.length) html = `<p class="empty">${state.history.length ? '没有匹配的党史事件。' : '党史专栏尚未录入。'}</p>`;
+  $('#list').innerHTML = html;
+  bindMarks();
+  stats();
+}
+
 function lessonInfo(no) {
   const lessons = (state.conceptDoc && state.conceptDoc.lessons) || [];
   return lessons.find((l) => l.no === no) || null;
@@ -174,9 +213,13 @@ function render() {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   if (!state.ready) { $('#list').innerHTML = '<p class="empty">正在加载题库…</p>'; return; }
   const onConceptIndex = view === 'concept' && state.conceptLesson == null;
+  const onHistory = view === 'history';
   $('#q').disabled = onConceptIndex;
-  $('#q').placeholder = onConceptIndex ? '选择课程后可搜索' : '搜索题干 / 答案 / 解析 / 概念 / 关键词';
+  $('#q').placeholder = onConceptIndex
+    ? '选择课程后可搜索'
+    : (onHistory ? '搜索时间 / 地点 / 人物 / 事件 / 影响' : '搜索题干 / 答案 / 解析 / 概念 / 关键词');
   if (view === 'concept') { renderConcepts(); return; }
+  if (view === 'history') { renderHistory(); return; }
   let list = state.bank.slice();
   if (TYPE[view]) list = list.filter((q) => q.type === view);
   if (view === 'review') { const r = review(); list = list.filter((q) => r[q.id]); }
@@ -214,10 +257,12 @@ function stats() {
   const undated = state.bank.filter((q) => timeKey(q) === null).length;
   const marked = Object.keys(review()).length;
   const cn = state.concepts.length;
-  $('#stats').textContent = `共 ${state.bank.length} 题 · ${cn} 条概念 · ${state.sets.length} 套 · 时间待定 ${undated} 题 · 已标记复习 ${marked} 个`;
+  const hn = state.history.length;
+  $('#stats').textContent = `共 ${state.bank.length} 题 · ${cn} 条概念 · ${hn} 条党史 · ${state.sets.length} 套 · 时间待定 ${undated} 题 · 已标记复习 ${marked} 个`;
   $('#sets').textContent = state.sets.length
     ? '已并入：' + state.sets.map((s) => `${s.setId}（${(s.questions || []).length} 题）`).join('、')
       + (cn ? `；概念：${(state.conceptDoc && state.conceptDoc.lessons ? state.conceptDoc.lessons.length : 0)}/11 课（${cn} 条）` : '')
+      + (hn ? `；党史：${hn} 条` : '')
     : '';
 }
 
@@ -233,14 +278,18 @@ async function boot() {
   let conceptDoc = null;
   try { conceptDoc = await loadJSON(DATA + 'concepts.json'); } catch (e) { console.warn('无 concepts.json'); }
   const concepts = (conceptDoc && conceptDoc.items) || [];
+  let historyDoc = null;
+  try { historyDoc = await loadJSON(DATA + 'history.json'); } catch (e) { console.warn('无 history.json'); }
+  const history = (historyDoc && historyDoc.events) || [];
   sets.sort((a, b) => String(a.setId).localeCompare(String(b.setId)));
   const bank = mergeSets(sets);
   const n = applyCorrections(bank, corrections);
   sortByTime(bank);
   state.bank = bank; state.sets = sets; state.corrections = corrections;
   state.concepts = concepts; state.conceptDoc = conceptDoc;
+  state.history = history; state.historyDoc = historyDoc;
   state.ready = true;
-  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题 / ${concepts.length} 条概念，应用订正 ${n} 条`);
+  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题 / ${concepts.length} 条概念 / ${history.length} 条党史，应用订正 ${n} 条`);
   render();
 }
 

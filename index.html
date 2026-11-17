@@ -48,13 +48,21 @@ footer{max-width:880px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font
 .back{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer}
 .back:hover{border-color:var(--accent);color:var(--accent)}
 .lesson-total{color:var(--muted);font-size:13px}
+.history-intro{color:var(--muted);font-size:13px;margin:10px 0 2px}
+.facts{margin:8px 0 10px;display:grid;gap:6px}
+.facts>div{display:grid;grid-template-columns:42px 1fr;gap:10px}
+.facts dt{color:var(--muted);font-size:13px;line-height:1.7;white-space:nowrap}
+.facts dd{margin:0}
+.fact-main dd{font-weight:600}
+.impact{margin:10px 0 0;padding:8px 12px;background:#fafafa;border-left:3px solid var(--accent);border-radius:4px;color:#374151;white-space:pre-wrap}
+.impact-label{font-weight:600;color:var(--accent);margin-right:8px}
 </style>
 </head>
 <body>
 <header>
   <h1>党课题库</h1>
   <div class="stats" id="stats">加载中…</div>
-  <input id="q" type="search" placeholder="搜索题干 / 答案 / 解析 / 概念 / 关键词">
+  <input id="q" type="search" placeholder="搜索题干 / 答案 / 解析 / 概念 / 党史 / 关键词">
 </header>
 <nav id="tabs">
   <button data-view="single">单选题</button>
@@ -62,11 +70,12 @@ footer{max-width:880px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font
   <button data-view="blank">填空题</button>
   <button data-view="judge">判断题</button>
   <button data-view="concept">概念</button>
+  <button data-view="history">党史</button>
   <button data-view="timeline">时间轴</button>
   <button data-view="review">待复习</button>
 </nav>
 <main id="list"></main>
 <footer><span id="sets"></span></footer>
-<script src="assets/app.js?v=20261117c"></script>
+<script src="assets/app.js?v=20261117d"></script>
 </body>
 </html>
