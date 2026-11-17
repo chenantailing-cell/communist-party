@@ -4,7 +4,7 @@ const TYPE = { single: '单选题', multiple: '多选题', blank: '填空题', j
 const TABS = ['single', 'multiple', 'blank', 'judge', 'concept', 'timeline', 'review'];
 const REVIEW_KEY = 'dangke.review.v1';
 
-const state = { bank: [], concepts: [], conceptDoc: null, sets: [], corrections: [], view: 'single', q: '' };
+const state = { bank: [], concepts: [], conceptDoc: null, sets: [], corrections: [], view: 'single', q: '', ready: false };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -121,6 +121,7 @@ function bindMarks() {
 function render() {
   const view = state.view;
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+  if (!state.ready) { $('#list').innerHTML = '<p class="empty">正在加载题库…</p>'; return; }
   if (view === 'concept') { renderConcepts(); return; }
   let list = state.bank.slice();
   if (TYPE[view]) list = list.filter((q) => q.type === view);
@@ -184,6 +185,12 @@ async function boot() {
   sortByTime(bank);
   state.bank = bank; state.sets = sets; state.corrections = corrections;
   state.concepts = concepts; state.conceptDoc = conceptDoc;
+  state.ready = true;
+  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题 / ${concepts.length} 条概念，应用订正 ${n} 条`);
+  render();
+}
+
+function initNav() {
   const hash = (location.hash || '').slice(1);
   state.view = TABS.includes(hash) ? hash : 'single';
   $('#tabs').onclick = (e) => {
@@ -198,7 +205,8 @@ async function boot() {
     const h = (location.hash || '').slice(1);
     if (TABS.includes(h)) { state.view = h; render(); }
   });
-  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题 / ${concepts.length} 条概念，应用订正 ${n} 条`);
-  render();
 }
+
+initNav();
+render();
 boot();
