@@ -1,10 +1,10 @@
 /* 党课题库前端：manifest → 逐套读取 → 合并去重 → 应用订正 → 按历史时间排序 → 渲染 */
 const DATA = 'data/';
-const TYPE = { single: '单选题', multiple: '多选题', blank: '填空题', judge: '判断题' };
-const TABS = ['single', 'multiple', 'blank', 'judge', 'timeline', 'review'];
+const TYPE = { single: '单选题', multiple: '多选题', blank: '填空题', judge: '判断题', concept: '概念' };
+const TABS = ['single', 'multiple', 'blank', 'judge', 'concept', 'timeline', 'review'];
 const REVIEW_KEY = 'dangke.review.v1';
 
-const state = { bank: [], sets: [], corrections: [], view: 'single', q: '' };
+const state = { bank: [], concepts: [], conceptDoc: null, sets: [], corrections: [], view: 'single', q: '' };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -72,9 +72,56 @@ function card(q) {
 </article>`;
 }
 
+function conceptCard(c) {
+  const time = c.time && c.time.label
+    ? `<span class="badge" title="${esc(c.time.note || '')}">${esc(c.time.label)}</span>`
+    : '';
+  const lesson = c.lesson
+    ? `<span class="badge" title="${esc(c.lessonTitle || '')}">第 ${esc(c.lesson)} 课</span>`
+    : `<span class="badge muted">课次待定</span>`;
+  const tags = (c.tags || []).filter((t) => t !== '概念' && !/^第\s*\d+\s*课$/.test(t))
+    .map((t) => `<span class="badge muted">${esc(t)}</span>`).join('');
+  const marked = !!review()[c.id];
+  return `<article class="card concept" data-id="${esc(c.id)}">
+  <div class="meta">${time}${lesson}<span class="badge">概念</span><span>第 ${esc(c.no)} 条</span>${tags}</div>
+  <p class="stem">${esc(c.stem)}</p>
+  <p class="concept-def">${esc(c.answer)}</p>
+  ${c.explain ? `<p class="explain">${esc(c.explain)}</p>` : ''}
+  <button class="mark${marked ? ' on' : ''}">${marked ? '已标记复习' : '标记复习'}</button>
+</article>`;
+}
+
+function renderConcepts() {
+  let list = state.concepts.slice();
+  if (state.q) {
+    const k = state.q.toLowerCase();
+    list = list.filter((c) => [c.stem, c.answer, c.explain, c.lessonTitle, (c.tags || []).join(' ')]
+      .join(' ').toLowerCase().includes(k));
+  }
+  list.sort((a, b) => (a.lesson || 99) - (b.lesson || 99) || a.no - b.no);
+  let html = list.map(conceptCard).join('');
+  if (!html) html = `<p class="empty">${state.concepts.length ? '没有匹配的概念。' : '「概念」分类已就绪，尚未录入条目。'}</p>`;
+  $('#list').innerHTML = html;
+  bindMarks();
+  stats();
+}
+
+function bindMarks() {
+  $('#list').querySelectorAll('.mark').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.closest('.card').dataset.id;
+      const r = review();
+      if (r[id]) delete r[id]; else r[id] = new Date().toISOString().slice(0, 10);
+      saveReview(r);
+      render();
+    };
+  });
+}
+
 function render() {
   const view = state.view;
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'concept') { renderConcepts(); return; }
   let list = state.bank.slice();
   if (TYPE[view]) list = list.filter((q) => q.type === view);
   if (view === 'review') { const r = review(); list = list.filter((q) => r[q.id]); }
@@ -104,24 +151,18 @@ function render() {
   }
   if (!html) html = '<p class="empty">没有匹配的题目。</p>';
   $('#list').innerHTML = html;
-  $('#list').querySelectorAll('.mark').forEach((btn) => {
-    btn.onclick = () => {
-      const id = btn.closest('.card').dataset.id;
-      const r = review();
-      if (r[id]) delete r[id]; else r[id] = new Date().toISOString().slice(0, 10);
-      saveReview(r);
-      render();
-    };
-  });
+  bindMarks();
   stats();
 }
 
 function stats() {
   const undated = state.bank.filter((q) => timeKey(q) === null).length;
   const marked = Object.keys(review()).length;
-  $('#stats').textContent = `共 ${state.bank.length} 题 · ${state.sets.length} 套 · 时间待定 ${undated} 题 · 已标记复习 ${marked} 题`;
+  const cn = state.concepts.length;
+  $('#stats').textContent = `共 ${state.bank.length} 题 · ${cn} 条概念 · ${state.sets.length} 套 · 时间待定 ${undated} 题 · 已标记复习 ${marked} 个`;
   $('#sets').textContent = state.sets.length
     ? '已并入：' + state.sets.map((s) => `${s.setId}（${(s.questions || []).length} 题）`).join('、')
+      + (cn ? `；概念：十一课（${cn} 条）` : '')
     : '';
 }
 
@@ -134,11 +175,15 @@ async function boot() {
   for (const f of manifest.sets || []) {
     try { sets.push(await loadJSON(DATA + 'sets/' + f)); } catch (e) { console.error('跳过套题 ' + f, e); }
   }
+  let conceptDoc = null;
+  try { conceptDoc = await loadJSON(DATA + 'concepts.json'); } catch (e) { console.warn('无 concepts.json'); }
+  const concepts = (conceptDoc && conceptDoc.items) || [];
   sets.sort((a, b) => String(a.setId).localeCompare(String(b.setId)));
   const bank = mergeSets(sets);
   const n = applyCorrections(bank, corrections);
   sortByTime(bank);
   state.bank = bank; state.sets = sets; state.corrections = corrections;
+  state.concepts = concepts; state.conceptDoc = conceptDoc;
   const hash = (location.hash || '').slice(1);
   state.view = TABS.includes(hash) ? hash : 'single';
   $('#tabs').onclick = (e) => {
@@ -153,7 +198,7 @@ async function boot() {
     const h = (location.hash || '').slice(1);
     if (TABS.includes(h)) { state.view = h; render(); }
   });
-  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题，应用订正 ${n} 条`);
+  console.log(`已加载 ${sets.length} 套 / ${bank.length} 题 / ${concepts.length} 条概念，应用订正 ${n} 条`);
   render();
 }
 boot();

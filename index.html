@@ -28,6 +28,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px}
 details[open] summary{margin-bottom:6px}
 .answer{font-weight:600;margin:6px 0}
 .explain{color:#374151;white-space:pre-wrap;margin:6px 0}
+.concept-def{color:#374151;white-space:pre-wrap;margin:8px 0;padding:8px 12px;background:#fafafa;border-left:3px solid var(--accent);border-radius:4px}
 .note{color:var(--muted);font-size:13px;margin:4px 0}
 .mark{margin-top:8px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer}
 .mark.on{background:#fef2f2;border-color:#fca5a5;color:#b3261e}
@@ -39,13 +40,14 @@ footer{max-width:880px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font
 <header>
   <h1>党课题库</h1>
   <div class="stats" id="stats">加载中…</div>
-  <input id="q" type="search" placeholder="搜索题干 / 答案 / 解析 / 关键词">
+  <input id="q" type="search" placeholder="搜索题干 / 答案 / 解析 / 概念 / 关键词">
 </header>
 <nav id="tabs">
   <button data-view="single">单选题</button>
   <button data-view="multiple">多选题</button>
   <button data-view="blank">填空题</button>
   <button data-view="judge">判断题</button>
+  <button data-view="concept">概念</button>
   <button data-view="timeline">时间轴</button>
   <button data-view="review">待复习</button>
 </nav>

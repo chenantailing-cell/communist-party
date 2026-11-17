@@ -12,8 +12,11 @@ assets/app.js       前端逻辑：读取、排序、渲染、标记复习
 data/manifest.json  名单：网页要加载哪些套（只追加）
 data/corrections.json  修正：按 id 改答案/补时间，不动已上传的套题
 data/sets/<setId>.json 一套题一个文件，文件名 = 日期 + 序号
+data/concepts.json  「概念」分类：十一课的概念条目，按课次
 source/md2json.py   把 markdown 题库转成 sets/*.json
 source/党课题库.md   题库源文件（唯一手工维护的地方）
+source/concepts2json.py  概念 md → data/concepts.json
+source/概念.md      概念源文件（按课次手工维护）
 CHANGELOG.md        每套一行流水账
 ```
 
@@ -30,6 +33,38 @@ CHANGELOG.md        每套一行流水账
 
    脚本会把新文件名追加进 `data/manifest.json`，已有套题文件不动。
 3. `git add -A && git commit -m "新增：2026-11-22-02" && git push`。
+
+## 加概念（按课次，十一课）
+
+「概念」是独立分类，存在 `data/concepts.json`，不混进任何一套题，也不动已有套题。
+
+1. 在 `source/概念.md` 里按课次加一节 `## 第X课 课名`，每条概念一个 `### 第 N 条`：
+
+   ```markdown
+   ## 第一课 党的性质与指导思想
+
+   ### 第 1 条
+
+   **概念：** 党的性质
+
+   **释义：** 中国共产党是中国工人阶级的先锋队……
+
+   **补充：** （补充释义必须整体用（）括起）
+
+   **时间：** 2022年10月 现行党章      ← 可省略
+
+   **标签：** 党章、性质                ← 可省略，课次标签自动加
+   ```
+
+2. 转换（在 `site/` 下执行）：
+
+   ```bash
+   python source/concepts2json.py source/概念.md --out data/concepts.json
+   ```
+
+3. 网页「概念」标签页按课次顺序显示，条目 id 形如 `concept-01-001`，直接可追溯到课次。
+
+校验：同课内概念重名、条号重复、缺释义、补充没用（）括起，转换会报错且不写入；跨课重名只提示，留到最后统一合并时确认。
 
 ## 发布（本机网络受限，走 API）
 
