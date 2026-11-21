@@ -1,0 +1,12 @@
+{
+  "sourceQuestions": 1953,
+  "uniqueQuestions": 1949,
+  "duplicateExtra": 4,
+  "timeKinds": {
+    "existing": 656,
+    "fallback": 1082,
+    "keyword": 211
+  },
+  "pendingCount": 1082,
+  "corrections": 2824
+}
