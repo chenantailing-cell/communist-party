@@ -68,17 +68,23 @@ const review = () => { try { return JSON.parse(localStorage.getItem(REVIEW_KEY) 
 const saveReview = (o) => localStorage.setItem(REVIEW_KEY, JSON.stringify(o));
 
 const CHAPTERS = [
-  { max: 192106, label: '1921\u5e74\u0037\u6708\u524d' },
-  { max: 194909, label: '1921\u5e74\u0037\u6708\u20141949\u5e74\u0039\u6708' },
-  { max: 197811, label: '1949\u5e74\u0031\u0030\u6708\u20141978\u5e74\u0031\u0031\u6708' },
-  { max: 201210, label: '1978\u5e74\u0031\u0032\u6708\u20142012\u5e74\u0031\u0030\u6708' },
-  { max: 99999999, label: '2012\u5e74\u0031\u0031\u6708\u81f3\u4eca' }
+  { id: 'pre-1921', max: 192106, label: '1921\u5e74\u0037\u6708\u524d' },
+  { id: '1921-1949', max: 194909, label: '1921\u5e74\u0037\u6708\u20141949\u5e74\u0039\u6708' },
+  { id: '1949-1978', max: 197811, label: '1949\u5e74\u0031\u0030\u6708\u20141978\u5e74\u0031\u0031\u6708' },
+  { id: '1978-2012', max: 201210, label: '1978\u5e74\u0031\u0032\u6708\u20142012\u5e74\u0031\u0030\u6708' },
+  { id: '2012-now', max: 99999999, label: '2012\u5e74\u0031\u0031\u6708\u81f3\u4eca' }
 ];
 function chapterLabel(q) {
   const k = timeKey(q);
   if (k === null) return '\u65f6\u95f4\u5f85\u786e\u8ba4';
   for (const c of CHAPTERS) if (k <= c.max) return c.label;
   return CHAPTERS[CHAPTERS.length - 1].label;
+}
+function chapterId(q) {
+  const k = timeKey(q);
+  if (k === null) return 'pending';
+  for (const c of CHAPTERS) if (k <= c.max) return c.id;
+  return CHAPTERS[CHAPTERS.length - 1].id;
 }
 
 function card(q) {
@@ -261,22 +267,34 @@ function render() {
   const undated = list.filter((q) => timeKey(q) === null);
 
   let html = '';
+  const buildToc = (arr, pending) => {
+    const counts = new Map();
+    for (const q of arr) { const id = chapterId(q); counts.set(id, (counts.get(id) || 0) + 1); }
+    let links = '';
+    for (const c of CHAPTERS) {
+      const n = counts.get(c.id) || 0;
+      links += n ? `<a class="chapter-link" href="#chapter-${c.id}">${c.label}<span>${n}</span></a>` : `<span class="chapter-link disabled">${c.label}<span>0</span></span>`;
+    }
+    if (pending.length) links += `<a class="chapter-link" href="#chapter-pending">\u65f6\u95f4\u5f85\u786e\u8ba4<span>${pending.length}</span></a>`;
+    return `<nav class="chapter-nav"><div class="chapter-nav-title">\u6309\u65f6\u95f4\u7ae0\u8282\u6d4f\u89c8</div><div class="chapter-links">${links}</div></nav>`;
+  };
   const grouped = (arr) => {
-    let out = '', last = '';
-    for (const q of arr) {
-      const chapter = chapterLabel(q);
-      if (chapter !== last) { out += `<h2 class="era">${chapter}</h2>`; last = chapter; }
-      out += card(q);
+    let out = '';
+    for (const c of CHAPTERS) {
+      const items = arr.filter((q) => chapterId(q) === c.id);
+      if (!items.length) continue;
+      out += `<h2 class="era" id="chapter-${c.id}">${c.label}<span class="chapter-count">${items.length} \u9898</span></h2>`;
+      out += items.map(card).join('');
     }
     return out;
   };
   if (view === 'timeline' || TYPE[view] || view === 'review') {
-    html = grouped(dated);
+    html = buildToc(dated, undated) + grouped(dated);
   } else {
     html = dated.map(card).join('');
   }
   if (undated.length) {
-    html += `<h2 class="era">\u65f6\u95f4\u5f85\u786e\u8ba4\uff08${undated.length} \u9898\uff09</h2>` + undated.map(card).join('');
+    html += `<h2 class="era" id="chapter-pending">\u65f6\u95f4\u5f85\u786e\u8ba4\uff08${undated.length} \u9898\uff09</h2>` + undated.map(card).join('');
   }
   if (!html) html = '<p class="empty">没有匹配的题目。</p>';
   $('#list').innerHTML = html;
