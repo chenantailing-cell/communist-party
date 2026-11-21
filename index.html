@@ -56,7 +56,15 @@ footer{max-width:880px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font
 .fact-main dd{font-weight:600}
 .impact{margin:10px 0 0;padding:8px 12px;background:#fafafa;border-left:3px solid var(--accent);border-radius:4px;color:#374151;white-space:pre-wrap}
 .impact-label{font-weight:600;color:var(--accent);margin-right:8px}
-</style>
+.chapter-nav{margin:10px 0 18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fafafa}
+.chapter-nav-title{font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px}
+.chapter-links{display:flex;flex-wrap:wrap;gap:7px}
+.chapter-link{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--fg);text-decoration:none;font-size:13px}
+.chapter-link:hover{border-color:var(--accent);color:var(--accent)}
+.chapter-link span{min-width:20px;text-align:center;padding:0 5px;border-radius:999px;background:var(--chip);color:var(--muted);font-size:12px}
+.chapter-link.disabled{opacity:.45}
+.chapter-count{margin-left:8px;color:var(--muted);font-size:12px;font-weight:400}
+.era{scroll-margin-top:92px}</style>
 </head>
 <body>
 <header>
@@ -76,6 +84,6 @@ footer{max-width:880px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font
 </nav>
 <main id="list"></main>
 <footer><span id="sets"></span> · <a href="PENDING_REVIEW.md">待确认清单</a></footer>
-<script src="assets/app.js?v=20261121audit"></script>
+<script src="assets/app.js?v=20261121toc"></script>
 </body>
 </html>
