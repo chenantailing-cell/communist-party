@@ -17,6 +17,12 @@ async function loadJSON(url) {
 const timeKey = (q) => (q.time && Number.isFinite(q.time.sort) ? q.time.sort : null);
 const seq = (q) => String(q.setId || '') + String(q.no == null ? '' : q.no).padStart(4, '0');
 
+function normalizeStem(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, '')
+    .replace(/\u201c/g, '"').replace(/\u201d/g, '"')
+    .replace(/\uff08/g, '(').replace(/\uff09/g, ')');
+}
+
 function sortByTime(list) {
   return list.sort((a, b) => {
     const ka = timeKey(a), kb = timeKey(b);
@@ -28,13 +34,23 @@ function sortByTime(list) {
 }
 
 function mergeSets(sets) {
-  const byId = new Map();
+  const byStem = new Map();
+  const richness = (q) => (q.time ? 10 : 0) + Math.min(String(q.explain || '').length, 500) / 100 + ((q.options || []).length ? 2 : 0);
   for (const s of sets) {
     for (const q of s.questions || []) {
-      byId.set(q.id, Object.assign({}, q, { setId: s.setId, setTitle: s.title || s.setId }));
+      const item = Object.assign({}, q, { setId: s.setId, setTitle: s.title || s.setId });
+      const key = item.type + '|' + normalizeStem(item.stem);
+      const prev = byStem.get(key);
+      if (!prev) { byStem.set(key, item); continue; }
+      if (richness(item) > richness(prev)) {
+        item.originIds = [...(prev.originIds || [prev.id]), prev.id];
+        byStem.set(key, item);
+      } else {
+        prev.originIds = [...(prev.originIds || [prev.id]), item.id];
+      }
     }
   }
-  return [...byId.values()];
+  return [...byStem.values()];
 }
 
 function applyCorrections(bank, corrections) {
@@ -51,7 +67,19 @@ function applyCorrections(bank, corrections) {
 const review = () => { try { return JSON.parse(localStorage.getItem(REVIEW_KEY) || '{}'); } catch (e) { return {}; } };
 const saveReview = (o) => localStorage.setItem(REVIEW_KEY, JSON.stringify(o));
 
-const eraLabel = (sort) => Math.floor(Math.floor(sort / 10000) / 10) * 10 + '年代';
+const CHAPTERS = [
+  { max: 192106, label: '1921\u5e74\u0037\u6708\u524d' },
+  { max: 194909, label: '1921\u5e74\u0037\u6708\u20141949\u5e74\u0039\u6708' },
+  { max: 197811, label: '1949\u5e74\u0031\u0030\u6708\u20141978\u5e74\u0031\u0031\u6708' },
+  { max: 201210, label: '1978\u5e74\u0031\u0032\u6708\u20142012\u5e74\u0031\u0030\u6708' },
+  { max: 99999999, label: '2012\u5e74\u0031\u0031\u6708\u81f3\u4eca' }
+];
+function chapterLabel(q) {
+  const k = timeKey(q);
+  if (k === null) return '\u65f6\u95f4\u5f85\u786e\u8ba4';
+  for (const c of CHAPTERS) if (k <= c.max) return c.label;
+  return CHAPTERS[CHAPTERS.length - 1].label;
+}
 
 function card(q) {
   const t = q.time && q.time.label
@@ -233,19 +261,22 @@ function render() {
   const undated = list.filter((q) => timeKey(q) === null);
 
   let html = '';
-  if (view === 'timeline') {
-    let lastEra = '';
-    for (const q of dated) {
-      const e = eraLabel(timeKey(q));
-      if (e !== lastEra) { html += `<h2 class="era">${e}</h2>`; lastEra = e; }
-      html += card(q);
+  const grouped = (arr) => {
+    let out = '', last = '';
+    for (const q of arr) {
+      const chapter = chapterLabel(q);
+      if (chapter !== last) { out += `<h2 class="era">${chapter}</h2>`; last = chapter; }
+      out += card(q);
     }
+    return out;
+  };
+  if (view === 'timeline' || TYPE[view] || view === 'review') {
+    html = grouped(dated);
   } else {
     html = dated.map(card).join('');
   }
   if (undated.length) {
-    html += `<h2 class="era">时间待定（${undated.length} 题，可在 corrections.json 补时间）</h2>`
-      + undated.map(card).join('');
+    html += `<h2 class="era">\u65f6\u95f4\u5f85\u786e\u8ba4\uff08${undated.length} \u9898\uff09</h2>` + undated.map(card).join('');
   }
   if (!html) html = '<p class="empty">没有匹配的题目。</p>';
   $('#list').innerHTML = html;
